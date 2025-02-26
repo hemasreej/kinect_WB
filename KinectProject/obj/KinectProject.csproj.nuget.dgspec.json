@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\hemas\\Desktop\\OneDrive\\ATL_ALL_YEARS\\Desktop\\newandroideel\\plugins\\textmate\\lib\\bundles\\python\\.vscode\\kinectv20basic\\KinectProject\\KinectProject.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\hemas\\Desktop\\OneDrive\\ATL_ALL_YEARS\\Desktop\\newandroideel\\plugins\\textmate\\lib\\bundles\\python\\.vscode\\kinectv20basic\\KinectProject\\KinectProject.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\hemas\\Desktop\\OneDrive\\ATL_ALL_YEARS\\Desktop\\newandroideel\\plugins\\textmate\\lib\\bundles\\python\\.vscode\\kinectv20basic\\KinectProject\\KinectProject.csproj",
+        "projectName": "KinectProject",
+        "projectPath": "C:\\Users\\hemas\\Desktop\\OneDrive\\ATL_ALL_YEARS\\Desktop\\newandroideel\\plugins\\textmate\\lib\\bundles\\python\\.vscode\\kinectv20basic\\KinectProject\\KinectProject.csproj",
+        "packagesPath": "C:\\Users\\hemas\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\hemas\\Desktop\\OneDrive\\ATL_ALL_YEARS\\Desktop\\newandroideel\\plugins\\textmate\\lib\\bundles\\python\\.vscode\\kinectv20basic\\KinectProject\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\hemas\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net48": {
+            "targetAlias": "net48",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.100"
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "dependencies": {
+            "FirebaseDatabase.net": {
+              "target": "Package",
+              "version": "[4.2.0, )"
+            },
+            "Microsoft.Kinect": {
+              "target": "Package",
+              "version": "[2.0.1410.19000, )"
+            },
+            "System.Text.Json": {
+              "target": "Package",
+              "version": "[9.0.2, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.102\\RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "win-x86": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@ I hope you are well. see i want a website that does the following thing, first u
 [image](https://github.com/user-attachments/assets/f7d9c2e9-584d-475d-8b6c-04a9f089bf66)
 ![image](https://github.com/user-attachments/assets/9ca90875-a43c-48fc-8eb2-26d53eb2f498)
 let me share the video clip with you what exactly is the problem.
-1. Height is always 1.56, if needed algo for height calculation, ready to provide
+1. Height is  showing always 1.56, not changing!
 2. when I press start skeletal capture, that is getting failed..
 3.  The working should be after height updation, when we press start skeletal capture, it should store all the node data for every second as the patient walks at that time, and should stop when skeletal tracking is clicked which is not happening! 
 

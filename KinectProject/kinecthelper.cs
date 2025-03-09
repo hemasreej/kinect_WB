@@ -7,6 +7,19 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Diagnostics;
+
+// Add PatientData class at the top level
+public class PatientData
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+    public string Gender { get; set; }
+    public double Height { get; set; }
+    public string CreatedAt { get; set; }
+    public string UpdatedAt { get; set; }
+}
 
 public class KinectHelper
 {
@@ -148,13 +161,105 @@ public class KinectHelper
                 return;
             }
 
-            _isMeasuringHeight = false; // Stop height tracking if it's running
+            if (_bodyFrameReader == null)
+            {
+                _bodyFrameReader = _sensor?.BodyFrameSource.OpenReader();
+                if (_bodyFrameReader != null)
+                {
+                    _bodyFrameReader.FrameArrived += BodyFrameArrived;
+                }
+            }
+
+            _isMeasuringHeight = false;
             _isTrackingSkeletal = true;
             
-            // Initialize the timer to capture skeletal data every second
-            _skeletalTimer = new Timer(CaptureSkeletalData, null, 0, 1000);
+            // Use shorter interval (500ms) for more frequent updates
+            _skeletalTimer = new Timer(CaptureSkeletalData, null, 0, 500);
             
             Console.WriteLine("🦴 Skeletal Tracking Started for patient: " + _patientId);
+        }
+    }
+
+    private async Task SaveSkeletalDataToFirebase(Dictionary<string, object> jointData, string timestamp)
+    {
+        try
+        {
+            var path = $"patients/{_patientId}/skeletal_data/{timestamp}";
+            await _firebaseClient
+                .Child(path)
+                .PutAsync(jointData);
+
+            // Add real-time WebSocket notification
+            await NotifyWebSocketClients("skeletalData", new { patientId = _patientId, data = jointData });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to save skeletal data: {ex.Message}");
+            HandleKinectError(ex);
+        }
+    }
+
+    private async Task NotifyWebSocketClients(string eventType, object data)
+    {
+        try
+        {
+            using (var client = new WebClient())
+            {
+                client.Headers[HttpRequestHeader.ContentType] = "application/json";
+                var payload = System.Text.Json.JsonSerializer.Serialize(new { type = eventType, data });
+                await client.UploadStringTaskAsync("http://localhost:5000/notify", payload);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to notify WebSocket clients: {ex.Message}");
+        }
+    }
+
+    private void HandleKinectError(Exception ex)
+    {
+        Debug.WriteLine($"Kinect Error: {ex.Message}");
+        Console.WriteLine($"Kinect Error: {ex.Message}");
+        
+        // Implement retry logic with exponential backoff
+        if (_sensor?.IsAvailable == false)
+        {
+            int retryCount = 0;
+            int maxRetries = 3;
+            int baseDelay = 1000; // 1 second
+
+            while (retryCount < maxRetries)
+            {
+                try
+                {
+                    _sensor?.Close();
+                    Thread.Sleep(baseDelay * (int)Math.Pow(2, retryCount)); // Exponential backoff
+                    _sensor = KinectSensor.GetDefault();
+                    _sensor?.Open();
+
+                    if (_sensor?.IsAvailable == true)
+                    {
+                        _bodyFrameReader = _sensor.BodyFrameSource.OpenReader();
+                        if (_bodyFrameReader != null)
+                        {
+                            _bodyFrameReader.FrameArrived += BodyFrameArrived;
+                            Debug.WriteLine("✅ Kinect sensor recovered successfully");
+                            Console.WriteLine("✅ Kinect sensor recovered successfully");
+                            return;
+                        }
+                    }
+                }
+                catch (Exception retryEx)
+                {
+                    Debug.WriteLine($"Retry {retryCount + 1} failed: {retryEx.Message}");
+                    Console.WriteLine($"Retry {retryCount + 1} failed: {retryEx.Message}");
+                }
+
+                retryCount++;
+            }
+
+            Debug.WriteLine("❌ Failed to recover Kinect sensor after multiple retries");
+            Console.WriteLine("❌ Failed to recover Kinect sensor after multiple retries");
         }
     }
 
@@ -249,31 +354,28 @@ public class KinectHelper
 
     private double CalculateHeight(Body body)
     {
-        double Distance(Joint j1, Joint j2) => Math.Sqrt(
-            Math.Pow(j1.Position.X - j2.Position.X, 2) +
-            Math.Pow(j1.Position.Y - j2.Position.Y, 2) +
-            Math.Pow(j1.Position.Z - j2.Position.Z, 2));
-
-        double torsoHeight = Distance(body.Joints[JointType.SpineBase], body.Joints[JointType.SpineMid]) +
-                             Distance(body.Joints[JointType.SpineMid], body.Joints[JointType.Neck]) +
-                             Distance(body.Joints[JointType.Neck], body.Joints[JointType.Head]);
-
-        double leftLeg = Distance(body.Joints[JointType.HipLeft], body.Joints[JointType.KneeLeft]) +
-                         Distance(body.Joints[JointType.KneeLeft], body.Joints[JointType.AnkleLeft]) +
-                         Distance(body.Joints[JointType.AnkleLeft], body.Joints[JointType.FootLeft]);
-
-        double rightLeg = Distance(body.Joints[JointType.HipRight], body.Joints[JointType.KneeRight]) +
-                          Distance(body.Joints[JointType.KneeRight], body.Joints[JointType.AnkleRight]) +
-                          Distance(body.Joints[JointType.AnkleRight], body.Joints[JointType.FootRight]);
-
-        // Calculate the average of both legs and add to torso height
-        double calculatedHeight = torsoHeight + ((leftLeg + rightLeg) / 2.0);
+        // Get head and feet positions in camera space
+        var head = body.Joints[JointType.Head].Position;
+        var leftFoot = body.Joints[JointType.FootLeft].Position;
+        var rightFoot = body.Joints[JointType.FootRight].Position;
+    
+        // Use the higher foot position to account for stance
+        float footY = Math.Max(leftFoot.Y, rightFoot.Y);
         
-        // You can use either the calculated height or the fixed value (1.56)
-        // Uncomment the line below to always return 1.56 regardless of calculation
-        // return 1.56;
+        // Calculate height in meters
+        double heightInMeters = Math.Abs(head.Y - footY);
         
-        return calculatedHeight;
+        // Apply calibration factor (may need adjustment based on testing)
+        double calibrationFactor = 1.15; // Typical adjustment factor
+        heightInMeters *= calibrationFactor;
+    
+        // Validate height is within reasonable range (1.0m - 2.5m)
+        if (heightInMeters < 1.0 || heightInMeters > 2.5)
+        {
+            throw new InvalidOperationException($"Invalid height measurement: {heightInMeters}m");
+        }
+    
+        return Math.Round(heightInMeters, 2);
     }
 
     private async Task SaveHeightToFirebase(double height)
@@ -324,10 +426,85 @@ public class KinectHelper
 
     public void Dispose()
     {
-        _skeletalTimer?.Dispose();
+        StopSkeletalTracking();
         _bodyFrameReader?.Dispose();
         _sensor?.Close();
         _httpListener?.Stop();
         _httpListener?.Close();
+        _skeletalTimer?.Dispose();
+    }
+
+    // Remove the second HandleKinectError method (around line 426)
+    // Keep only the first implementation with exponential backoff
+
+    private async Task<bool> CheckExistingPatient(string name, int age, string gender)
+    {
+        try
+        {
+            var patients = await _firebaseClient
+                .Child("patients")
+                .OnceAsync<PatientData>();
+
+            var isDuplicate = patients.Any(patient => 
+                patient.Object.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+            if (isDuplicate)
+            {
+                Console.WriteLine($"⚠ Patient with name '{name}' already exists in the system.");
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking existing patient: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Add this method to create a new patient
+    public async Task<bool> CreatePatient(string name, int age, string gender, double height)
+    {
+        if (await CheckExistingPatient(name, age, gender))
+        {
+            return false;
+        }
+    
+        try
+        {
+            var patientData = new PatientData
+            {
+                Name = name,
+                Age = age,
+                Gender = gender,
+                Height = height,
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                UpdatedAt = DateTime.UtcNow.ToString("o")
+            };
+    
+            await _firebaseClient
+                .Child("patients")
+                .Child(GenerateUniquePatientId(name, age, gender))
+                .PutAsync(patientData);
+    
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating patient: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Update the patient ID generation to include timestamp
+    private string GenerateUniquePatientId(string name, int age, string gender)
+    {
+        string timestamp = DateTime.Now.ToString("yyMMddHHmm");
+        string genderCode = gender.Substring(0, 1).ToUpper();
+        string ageCode = age.ToString("D2");
+        string nameCode = name.Length >= 2 ? name.Substring(0, 2).ToUpper() : name.PadRight(2).ToUpper();
+        
+        return $"{genderCode}{ageCode}{nameCode}{timestamp}";
     }
 }
